@@ -1,5 +1,6 @@
 package com.example.eduu
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
+import androidx.core.content.edit
 
 // ==========================================
 // 1. Main Dashboard Container
@@ -230,33 +232,7 @@ fun ToolsTab() {
 
 @Composable
 fun MeetsTab(email: String, onLogout: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(Icons.Rounded.VideoCall, null, tint = Color(0xFFEC4899), modifier = Modifier.size(80.dp))
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Study Meets", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text("Connect with peers.", color = Color.Gray)
-        Spacer(modifier = Modifier.height(48.dp))
-
-        DashboardGlassCard {
-            Column(Modifier.padding(24.dp)) {
-                Text("Currently signed in as:", color = Color.Gray)
-                Text(email, color = Color.White, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = onLogout,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Log Out")
-        }
-    }
+    StudyMeetsScreen()
 }
 
 // ==========================================
@@ -390,6 +366,7 @@ fun StatItem(icon: ImageVector, value: String, label: String, modifier: Modifier
 }
 
 // --- HELPER LOGIC FOR STREAKS ---
+@SuppressLint("UseKtx")
 fun updateAndGetStreak(context: Context): Int {
     val prefs = context.getSharedPreferences("edunovaq_prefs", Context.MODE_PRIVATE)
     val lastLogin = prefs.getLong("last_login_day", 0L)
@@ -403,11 +380,11 @@ fun updateAndGetStreak(context: Context): Int {
     } else if (lastLogin == today - 1) {
         // Consecutive day
         val newStreak = currentStreak + 1
-        prefs.edit().putLong("last_login_day", today).putInt("user_streak", newStreak).apply()
+        prefs.edit() { putLong("last_login_day", today).putInt("user_streak", newStreak) }
         return newStreak
     } else {
         // Missed a day or first login
-        prefs.edit().putLong("last_login_day", today).putInt("user_streak", 1).apply()
+        prefs.edit() { putLong("last_login_day", today).putInt("user_streak", 1) }
         return 1
     }
 }
