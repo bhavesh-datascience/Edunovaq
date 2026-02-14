@@ -383,6 +383,7 @@ object GroqClient {
                 writer.write(jsonBody.toString())
                 writer.flush()
 
+                
                 if (conn.responseCode == 200) {
                     val reader = BufferedReader(InputStreamReader(conn.inputStream))
                     val response = StringBuilder()

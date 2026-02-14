@@ -71,7 +71,10 @@ dependencies {
 
     // --- ViewModel & Icons ---
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
-    implementation("androidx.compose.material:material-icons-extended:1.6.7") // Slightly stable version
+    implementation("androidx.compose.material:material-icons-extended:1.6.7")
+    implementation(libs.firebase.firestore) // Slightly stable version
+    implementation("com.google.firebase:firebase-firestore")
+
 
     // --- Testing ---
     testImplementation("junit:junit:4.13.2")
@@ -81,4 +84,6 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+
 }
