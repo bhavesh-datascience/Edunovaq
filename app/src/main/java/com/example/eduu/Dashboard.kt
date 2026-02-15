@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -34,17 +33,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Calendar
 import androidx.core.content.edit
+import java.util.Calendar
 
 // ==========================================
 // 1. Main Dashboard Container
 // ==========================================
 @Composable
-fun DashboardScreen(userEmail: String, userName: String, onLogout: () -> Unit) {
+fun DashboardScreen(
+    userEmail: String,
+    userName: String,
+    onLogout: () -> Unit,
+    onProfileClick: () -> Unit // <--- ADDED: To open profile
+) {
     var currentTab by remember { mutableIntStateOf(0) }
-
-    // --- STREAK LOGIC ---
     val context = LocalContext.current
     var currentStreak by remember { mutableIntStateOf(0) }
 
@@ -60,23 +62,15 @@ fun DashboardScreen(userEmail: String, userName: String, onLogout: () -> Unit) {
     ) {
         // Ambient Glow
         Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(
-                color = Color(0xFF6366F1).copy(alpha = 0.1f),
-                radius = 700f,
-                center = Offset(x = size.width, y = 0f)
-            )
-            drawCircle(
-                color = Color(0xFFEC4899).copy(alpha = 0.05f),
-                radius = 500f,
-                center = Offset(x = 0f, y = size.height)
-            )
+            drawCircle(color = Color(0xFF6366F1).copy(alpha = 0.1f), radius = 700f, center = Offset(size.width, 0f))
+            drawCircle(color = Color(0xFFEC4899).copy(alpha = 0.05f), radius = 500f, center = Offset(0f, size.height))
         }
 
         // Tab Content
         Column(modifier = Modifier.fillMaxSize()) {
             Crossfade(targetState = currentTab, label = "TabSwitch") { tabIndex ->
                 when (tabIndex) {
-                    0 -> HomeTab(userName, currentStreak)
+                    0 -> HomeTab(userName, currentStreak, onProfileClick) // Pass it here
                     1 -> AITab()
                     2 -> ToolsTab()
                     3 -> MeetsTab(userEmail, onLogout)
@@ -100,7 +94,7 @@ fun DashboardScreen(userEmail: String, userName: String, onLogout: () -> Unit) {
 // ==========================================
 
 @Composable
-fun HomeTab(userName: String, streak: Int) {
+fun HomeTab(userName: String, streak: Int, onProfileClick: () -> Unit) {
     val scrollState = rememberScrollState()
 
     Column(
@@ -126,12 +120,13 @@ fun HomeTab(userName: String, streak: Int) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Hello, $userName", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             }
-            // Profile Logo
+            // Profile Logo (Clickable)
             Box(
                 modifier = Modifier
                     .size(50.dp)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF818CF8)))),
+                    .background(Brush.linearGradient(listOf(Color(0xFF6366F1), Color(0xFF818CF8))))
+                    .clickable { onProfileClick() }, // <--- Click action
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -147,19 +142,11 @@ fun HomeTab(userName: String, streak: Int) {
 
         // Streak Card
         DashboardGlassCard {
-            Row(
-                modifier = Modifier.padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFF5722).copy(alpha = 0.2f)),
+                    modifier = Modifier.size(50.dp).clip(CircleShape).background(Color(0xFFFF5722).copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
-                ) {
-                    Text("🔥", fontSize = 24.sp)
-                }
+                ) { Text("🔥", fontSize = 24.sp) }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text("Study Streak", color = Color.Gray, fontSize = 12.sp)
@@ -172,72 +159,49 @@ fun HomeTab(userName: String, streak: Int) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Graphs Row
         Text("Your Progress", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(16.dp))
-
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             DashboardGlassCard(modifier = Modifier.weight(1f).height(180.dp)) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CustomPieChart(
-                        data = listOf(0.6f, 0.25f, 0.15f),
-                        colors = listOf(Color(0xFF6366F1), Color(0xFFEC4899), Color(0xFF4ADE80))
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    CustomPieChart(listOf(0.6f, 0.25f, 0.15f), listOf(Color(0xFF6366F1), Color(0xFFEC4899), Color(0xFF4ADE80)))
+                    Spacer(Modifier.height(12.dp))
                     Text("Performance", color = Color.Gray, fontSize = 12.sp)
                 }
             }
-
             Spacer(modifier = Modifier.width(16.dp))
-
             DashboardGlassCard(modifier = Modifier.weight(1f).height(180.dp)) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
+                Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     CustomBarGraph()
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
                     Text("Weekly Activity", color = Color.Gray, fontSize = 12.sp)
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-
         Row(Modifier.fillMaxWidth()) {
-            StatItem(icon = Icons.Rounded.AccessTime, value = "42h", label = "Studied", modifier = Modifier.weight(1f))
-            StatItem(icon = Icons.Rounded.TaskAlt, value = "85%", label = "Tasks", modifier = Modifier.weight(1f))
-            StatItem(icon = Icons.Rounded.EmojiEvents, value = "Gold", label = "Rank", modifier = Modifier.weight(1f))
+            StatItem(Icons.Rounded.AccessTime, "42h", "Studied", Modifier.weight(1f))
+            StatItem(Icons.Rounded.TaskAlt, "85%", "Tasks", Modifier.weight(1f))
+            StatItem(Icons.Rounded.EmojiEvents, "Gold", "Rank", Modifier.weight(1f))
         }
-
         Spacer(modifier = Modifier.height(100.dp))
     }
 }
 
-@Composable
-    fun AITab() {
-        // Replaced the placeholder with the real screen
-        AIScreen()
-    }
-
-
-@Composable
-fun ToolsTab() {
-    ToolsScreen()
-}
-
-@Composable
-fun MeetsTab(email: String, onLogout: () -> Unit) {
-    StudyMeetsScreen()
-}
-
 // ==========================================
-// 3. Components & UI Logic
+// 3. Components
 // ==========================================
+
+@Composable
+fun AITab() { AIScreen() } // Assuming AIScreen() exists in AIFeatures.kt
+
+@Composable
+fun ToolsTab() { ToolsScreen() } // Assuming ToolsScreen() exists in StudyTools.kt
+
+@Composable
+fun MeetsTab(email: String, onLogout: () -> Unit) { StudyMeetsScreen() } // Assuming StudyMeetsScreen exists
 
 @Composable
 fun GlassNavigationPill(selectedTab: Int, onTabSelected: (Int) -> Unit) {
@@ -248,11 +212,7 @@ fun GlassNavigationPill(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
         modifier = Modifier.height(70.dp).fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             NavIcon(Icons.Filled.Home, "Home", selectedTab == 0) { onTabSelected(0) }
             NavIcon(Icons.Filled.AutoAwesome, "AI", selectedTab == 1) { onTabSelected(1) }
             NavIcon(Icons.Filled.Construction, "Tools", selectedTab == 2) { onTabSelected(2) }
@@ -265,52 +225,24 @@ fun GlassNavigationPill(selectedTab: Int, onTabSelected: (Int) -> Unit) {
 fun NavIcon(icon: ImageVector, label: String, isSelected: Boolean, onClick: () -> Unit) {
     val color = if (isSelected) Color(0xFF6366F1) else Color.Gray
     val scale by animateFloatAsState(if (isSelected) 1.2f else 1.0f, label = "scale")
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.noRippleClickable { onClick() }
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.noRippleClickable { onClick() }) {
         Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(26.dp * scale))
         if (isSelected) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(Modifier.height(4.dp))
             Box(Modifier.size(4.dp).clip(CircleShape).background(color))
         }
     }
 }
 
-// --- Custom Modifier to remove "Touch Box" Ripple ---
 fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
-    clickable(
-        indication = null,
-        interactionSource = remember { MutableInteractionSource() }
-    ) {
-        onClick()
-    }
+    clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onClick() }
 }
 
 @Composable
 fun DashboardGlassCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.05f),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
-        content = content
-    )
+    Surface(modifier = modifier.fillMaxWidth(), color = Color.White.copy(alpha = 0.05f), shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)), content = content)
 }
 
-@Composable
-fun SimplePlaceholder(icon: ImageVector, title: String, desc: String) {
-    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(icon, null, tint = Color(0xFF6366F1), modifier = Modifier.size(80.dp))
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Text(desc, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Spacer(modifier = Modifier.height(100.dp))
-    }
-}
-
-// --- FIXED PIE CHART ---
 @Composable
 fun CustomPieChart(data: List<Float>, colors: List<Color>) {
     Canvas(modifier = Modifier.size(80.dp)) {
@@ -323,9 +255,8 @@ fun CustomPieChart(data: List<Float>, colors: List<Color>) {
                 sweepAngle = sweepAngle,
                 useCenter = false,
                 style = Stroke(width = 20f, cap = StrokeCap.Round),
-                // IMPORTANT: Use size from the scope, no need for Size() constructor unless resizing
-                size = size,
-                topLeft = Offset.Zero
+                topLeft = Offset.Zero,
+                size = size // Use the canvas size
             )
             startAngle += sweepAngle
         }
@@ -337,16 +268,15 @@ fun CustomBarGraph() {
     Canvas(modifier = Modifier.fillMaxWidth().height(80.dp)) {
         val barWidth = 15.dp.toPx()
         val spacing = 10.dp.toPx()
-        val maxHeight = size.height
         val heights = listOf(0.4f, 0.7f, 0.3f, 0.9f, 0.6f)
-        var startX = 0f
+        var startX = (size.width - (heights.size * (barWidth + spacing))) / 2 // Center graph
 
         heights.forEach { fraction ->
-            val barHeight = maxHeight * fraction
+            val barHeight = size.height * fraction
             drawLine(
                 color = Color(0xFF6366F1),
-                start = Offset(startX + barWidth / 2, maxHeight),
-                end = Offset(startX + barWidth / 2, maxHeight - barHeight),
+                start = Offset(startX + barWidth / 2, size.height),
+                end = Offset(startX + barWidth / 2, size.height - barHeight),
                 strokeWidth = barWidth,
                 cap = StrokeCap.Round
             )
@@ -358,33 +288,22 @@ fun CustomBarGraph() {
 @Composable
 fun StatItem(icon: ImageVector, value: String, label: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Color.White) }
-        Spacer(modifier = Modifier.height(8.dp))
+        Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Color.White) }
+        Spacer(Modifier.height(8.dp))
         Text(value, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Text(label, color = Color.Gray, fontSize = 12.sp)
     }
 }
 
-// --- HELPER LOGIC FOR STREAKS ---
 @SuppressLint("UseKtx")
 fun updateAndGetStreak(context: Context): Int {
     val prefs = context.getSharedPreferences("edunovaq_prefs", Context.MODE_PRIVATE)
     val lastLogin = prefs.getLong("last_login_day", 0L)
     val currentStreak = prefs.getInt("user_streak", 0)
-
-    // Get current day (epoch days)
     val today = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
 
-    if (lastLogin == today) {
-        return currentStreak // Already logged in today
-    } else if (lastLogin == today - 1) {
-        // Consecutive day
-        val newStreak = currentStreak + 1
-        prefs.edit() { putLong("last_login_day", today).putInt("user_streak", newStreak) }
-        return newStreak
-    } else {
-        // Missed a day or first login
-        prefs.edit() { putLong("last_login_day", today).putInt("user_streak", 1) }
-        return 1
-    }
+    if (lastLogin == today) return currentStreak
+    val newStreak = if (lastLogin == today - 1) currentStreak + 1 else 1
+    prefs.edit { putLong("last_login_day", today); putInt("user_streak", newStreak) }
+    return newStreak
 }

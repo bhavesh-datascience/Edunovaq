@@ -4,11 +4,11 @@ import android.os.Bundle
 import android.view.animation.OvershootInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
+// --- Animation Imports ---
+import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+// -------------------------
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -41,9 +41,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+// --- Theme Import ---
+import com.example.eduu.ui.theme.EduuTheme
 
 // ==========================================
 // 1. The Main Activity
@@ -52,10 +55,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            EdunovaqTheme {
+            EduuTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color(0xFF0F172A)
                 ) {
                     AppRoot()
                 }
@@ -65,15 +68,14 @@ class MainActivity : ComponentActivity() {
 }
 
 // ==========================================
-// 2. The App Root (Handles Splash -> App)
+// 2. The App Root
 // ==========================================
 @Composable
 fun AppRoot(viewModel: AuthViewModel = viewModel()) {
     var showSplash by remember { mutableStateOf(true) }
 
-    // Splash Timer Logic
     LaunchedEffect(Unit) {
-        delay(2000) // Show Splash for 2 seconds
+        delay(2000)
         showSplash = false
     }
 
@@ -85,7 +87,7 @@ fun AppRoot(viewModel: AuthViewModel = viewModel()) {
 }
 
 // ==========================================
-// 3. Splash Screen with Animation
+// 3. Splash Screen
 // ==========================================
 @Composable
 fun SplashScreen() {
@@ -107,14 +109,6 @@ fun SplashScreen() {
             .background(Color(0xFF0F172A)),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(
-                color = Color(0xFF6366F1).copy(alpha = 0.2f),
-                radius = size.minDimension / 1.5f,
-                center = center
-            )
-        }
-
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = Icons.Rounded.AutoAwesome,
@@ -138,36 +132,82 @@ fun SplashScreen() {
 }
 
 // ==========================================
-// 4. The Navigation Flow
+// 4. The Navigation Flow (FIXED HERE)
 // ==========================================
 @Composable
 fun EdunovaqAppFlow(viewModel: AuthViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
 
-    AnimatedVisibility(
-        visible = state.isLoggedIn,
-        enter = fadeIn(animationSpec = tween(1000)),
-        exit = fadeOut()
-    ) {
-        // Redirects directly to the Dashboard screen defined in Dashboard.kt
-        DashboardScreen(
-            userEmail = state.email,
-            userName = state.name.ifBlank { "Student" },
-            onLogout = { viewModel.logout() }
-        )
+    if (state.isCheckingProfile) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF0F172A)),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = Color(0xFF6366F1))
+        }
+        return
     }
 
-    AnimatedVisibility(
-        visible = !state.isLoggedIn,
-        enter = fadeIn(),
-        exit = fadeOut()
-    ) {
-        AuthScreen(viewModel = viewModel)
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // A. Main Dashboard Layer
+        AnimatedVisibility(
+            visible = state.isLoggedIn && state.isProfileComplete,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            DashboardScreen(
+                userEmail = state.email,
+                userName = state.name.ifBlank { "Student" },
+                onLogout = { viewModel.logout() },
+                onProfileClick = { viewModel.openProfile() }
+            )
+        }
+
+        // B. Registration Layer
+        AnimatedVisibility(
+            visible = state.isLoggedIn && !state.isProfileComplete,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            StudentRegistrationScreen(
+                userEmail = state.email,
+                onComplete = { viewModel.markProfileComplete() }
+            )
+        }
+
+        // C. Auth Layer
+        AnimatedVisibility(
+            visible = !state.isLoggedIn,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            AuthScreen(viewModel = viewModel)
+        }
+
+        // D. Profile Overlay (This was the error source)
+        AnimatedVisibility(
+            visible = state.isProfileOpen,
+            enter = slideInHorizontally(initialOffsetX = { fullWidth -> fullWidth }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { fullWidth -> fullWidth }) + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            // FIX: Added the missing onLogout parameter
+            ProfileScreen(
+                onBack = { viewModel.closeProfile() },
+                onLogout = {
+                    viewModel.closeProfile()
+                    viewModel.logout()
+                }
+            )
+        }
     }
 }
 
 // ==========================================
-// 5. The Auth Screen (Login/Signup)
+// 5. Auth Screen
 // ==========================================
 @Composable
 fun AuthScreen(viewModel: AuthViewModel) {
@@ -178,16 +218,13 @@ fun AuthScreen(viewModel: AuthViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0F172A))
-            .imePadding()
             .systemBarsPadding()
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(Color(0xFF6366F1).copy(alpha = 0.4f), 500f, Offset(size.width, 0f))
-            drawCircle(Color(0xFFEC4899).copy(alpha = 0.4f), 400f, Offset(0f, size.height))
-        }
-
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -249,16 +286,15 @@ fun AuthScreen(viewModel: AuthViewModel) {
 }
 
 // ==========================================
-// 6. Private UI Components (For Auth Only)
+// 6. Components
 // ==========================================
-
 @Composable
-private fun AuthGlassCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun AuthGlassCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(modifier = modifier.fillMaxWidth(), color = Color.White.copy(alpha = 0.05f), shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)), content = content)
 }
 
 @Composable
-private fun AuthGlassTextField(value: String, onValueChange: (String) -> Unit, label: String, icon: ImageVector, keyboardType: KeyboardType = KeyboardType.Text) {
+fun AuthGlassTextField(value: String, onValueChange: (String) -> Unit, label: String, icon: ImageVector, keyboardType: KeyboardType = KeyboardType.Text) {
     OutlinedTextField(
         value = value, onValueChange = onValueChange,
         label = { Text(label, color = Color.White.copy(alpha = 0.7f)) },
@@ -270,7 +306,7 @@ private fun AuthGlassTextField(value: String, onValueChange: (String) -> Unit, l
 }
 
 @Composable
-private fun AuthGlassPasswordField(value: String, onValueChange: (String) -> Unit, label: String) {
+fun AuthGlassPasswordField(value: String, onValueChange: (String) -> Unit, label: String) {
     var visible by remember { mutableStateOf(false) }
     OutlinedTextField(
         value = value, onValueChange = onValueChange,
@@ -285,13 +321,35 @@ private fun AuthGlassPasswordField(value: String, onValueChange: (String) -> Uni
 }
 
 // ==========================================
-// 7. ViewModel & Logic
+// 7. ViewModel
 // ==========================================
+
+data class AuthUiState(
+    val email: String = "",
+    val password: String = "",
+    val name: String = "",
+    val isLoginMode: Boolean = true,
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val isLoggedIn: Boolean = false,
+    val isCheckingProfile: Boolean = false,
+    val isProfileComplete: Boolean = false,
+    val isProfileOpen: Boolean = false
+)
+
+sealed class AuthEvent {
+    data class EmailChanged(val email: String) : AuthEvent()
+    data class PasswordChanged(val password: String) : AuthEvent()
+    data class NameChanged(val name: String) : AuthEvent()
+    object ToggleMode : AuthEvent()
+    object Submit : AuthEvent()
+}
 
 class AuthViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState = _uiState.asStateFlow()
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+    private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
     init {
         val currentUser = auth.currentUser
@@ -301,7 +359,37 @@ class AuthViewModel : ViewModel() {
                 email = currentUser.email ?: "",
                 name = currentUser.displayName ?: ""
             )
+            checkUserProfile(currentUser.uid)
         }
+    }
+
+    private fun checkUserProfile(uid: String) {
+        _uiState.value = _uiState.value.copy(isCheckingProfile = true)
+        db.collection("students").document(uid).get()
+            .addOnSuccessListener { document ->
+                val exists = document.exists()
+                _uiState.value = _uiState.value.copy(isCheckingProfile = false, isProfileComplete = exists)
+            }
+            .addOnFailureListener {
+                _uiState.value = _uiState.value.copy(isCheckingProfile = false, isProfileComplete = false)
+            }
+    }
+
+    fun markProfileComplete() {
+        _uiState.value = _uiState.value.copy(isProfileComplete = true)
+    }
+
+    fun openProfile() {
+        _uiState.value = _uiState.value.copy(isProfileOpen = true)
+    }
+
+    fun closeProfile() {
+        _uiState.value = _uiState.value.copy(isProfileOpen = false)
+    }
+
+    fun logout() {
+        auth.signOut()
+        _uiState.value = AuthUiState(isLoggedIn = false, isProfileComplete = false)
     }
 
     fun onEvent(event: AuthEvent) {
@@ -311,18 +399,13 @@ class AuthViewModel : ViewModel() {
             is AuthEvent.NameChanged -> _uiState.value = _uiState.value.copy(name = event.name)
             is AuthEvent.ToggleMode -> _uiState.value = _uiState.value.copy(isLoginMode = !_uiState.value.isLoginMode, error = null)
             is AuthEvent.Submit -> performAuth()
-            is AuthEvent.DismissError -> _uiState.value = _uiState.value.copy(error = null)
         }
-    }
-
-    fun logout() {
-        auth.signOut()
-        _uiState.value = AuthUiState(isLoggedIn = false)
     }
 
     private fun performAuth() {
         val s = _uiState.value
-        if (s.email.isBlank() || s.password.isBlank()) { _uiState.value = s.copy(error = "Please fill all fields."); return }
+        if (s.email.isBlank() || s.password.isBlank()) { _uiState.value = s.copy(error = "Please fill all fields"); return }
+
         _uiState.value = s.copy(isLoading = true, error = null)
 
         if (s.isLoginMode) {
@@ -330,56 +413,17 @@ class AuthViewModel : ViewModel() {
                 if (t.isSuccessful) {
                     val user = auth.currentUser
                     _uiState.value = s.copy(isLoading = false, isLoggedIn = true, name = user?.displayName ?: "")
+                    checkUserProfile(user!!.uid)
                 } else _uiState.value = s.copy(isLoading = false, error = t.exception?.message ?: "Login failed")
             }
         } else {
             auth.createUserWithEmailAndPassword(s.email, s.password).addOnCompleteListener { t ->
                 if (t.isSuccessful) {
                     val user = auth.currentUser
-                    val profileUpdates = UserProfileChangeRequest.Builder().setDisplayName(s.name).build()
-                    user?.updateProfile(profileUpdates)?.addOnCompleteListener {
-                        _uiState.value = s.copy(isLoading = false, isLoggedIn = true, error = null)
-                    }
-                } else {
-                    _uiState.value = s.copy(isLoading = false, error = t.exception?.message ?: "Sign up failed")
-                }
+                    user?.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(s.name).build())
+                    _uiState.value = s.copy(isLoading = false, isLoggedIn = true, isProfileComplete = false)
+                } else _uiState.value = s.copy(isLoading = false, error = t.exception?.message ?: "Sign up failed")
             }
         }
     }
-}
-
-data class AuthUiState(
-    val email: String = "",
-    val password: String = "",
-    val name: String = "",
-    val isLoginMode: Boolean = true,
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val isLoggedIn: Boolean = false
-)
-
-sealed class AuthEvent {
-    data class EmailChanged(val email: String) : AuthEvent()
-    data class PasswordChanged(val password: String) : AuthEvent()
-    data class NameChanged(val name: String) : AuthEvent()
-    object ToggleMode : AuthEvent()
-    object Submit : AuthEvent()
-    object DismissError : AuthEvent()
-}
-
-@Composable
-fun EdunovaqTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Color(0xFF6366F1),
-            secondary = Color(0xFFEC4899),
-            background = Color(0xFF0F172A),
-            surface = Color(0xFF1E293B),
-            onPrimary = Color.White,
-            onSecondary = Color.White,
-            onBackground = Color.White,
-            onSurface = Color.White
-        ),
-        content = content
-    )
 }
